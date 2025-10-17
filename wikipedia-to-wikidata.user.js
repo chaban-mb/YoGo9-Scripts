@@ -1,33 +1,23 @@
 // ==UserScript==
 // @name          MusicBrainz Wikipedia to Wikidata Converter
-// @version       2025.3.7
 // @namespace     https://github.com/YoGo9
-// @author        YoGo9
-// @description   Convert Wikipedia links to their equivalent Wikidata entities
-// @homepageURL   https://github.com/YoGo9/Scripts
-// @downloadURL   https://raw.github.com/YoGo9/Scripts/main/wikipedia-to-wikidata.user.js
-// @updateURL     https://raw.github.com/YoGo9/Scripts/main/wikipedia-to-wikidata.user.js
-// @supportURL    https://github.com/YoGo9/Scripts/issues
+// @version       2025.5.25
+// @description   Convert Wikipedia links to their equivalent Wikidata entities, update relationship types. Automatically submits edits when successful or when Wikipedia relationships are removed due to conversion failure. Also makes edits votable and prevents processing with pending edits.
+// @author        YoGo9, chaban
+// @license       MIT
+// @include       *://*.musicbrainz.org/artist/*
+// @include       *://*.musicbrainz.org/event/*
+// @include       *://*.musicbrainz.org/label/*
+// @include       *://*.musicbrainz.org/place/*
+// @include       *://*.musicbrainz.org/release-group/*
+// @include       *://*.musicbrainz.org/series/*
+// @include       *://*.musicbrainz.org/url/*/edit*
+// @include       *://*.musicbrainz.org/dialog*
 // @grant         GM_xmlhttpRequest
 // @connect       wikipedia.org
 // @connect       wikidata.org
 // @connect       musicbrainz.org
-// @match         *://*.musicbrainz.org/artist/*
-// @match         *://*.musicbrainz.org/event/*
-// @match         *://*.musicbrainz.org/label/*
-// @match         *://*.musicbrainz.org/place/*
-// @match         *://*.musicbrainz.org/release-group/*
-// @match         *://*.musicbrainz.org/series/*
-// @match         *://*.musicbrainz.org/url/*
-// @match         *://*.musicbrainz.org/dialog*
-// @match         *://*.musicbrainz.eu/artist/*
-// @match         *://*.musicbrainz.eu/event/*
-// @match         *://*.musicbrainz.eu/label/*
-// @match         *://*.musicbrainz.eu/place/*
-// @match         *://*.musicbrainz.eu/release-group/*
-// @match         *://*.musicbrainz.eu/series/*
-// @match         *://*.musicbrainz.eu/url/*
-// @match         *://*.musicbrainz.eu/dialog*
+// @tag           ai-created
 // ==/UserScript==
 
 (function () {
@@ -38,8 +28,8 @@
 
     /**
      * Sets the value of an input element which has been manipulated by React.
-     * @param {HTMLInputElement} input 
-     * @param {string} value 
+     * @param {HTMLInputElement} input
+     * @param {string} value
      */
     function setReactInputValue(input, value) {
         nativeInputValueSetter.call(input, value);
@@ -50,8 +40,8 @@
 
     /**
      * Sets the value of a textarea input element which has been manipulated by React.
-     * @param {HTMLTextAreaElement} input 
-     * @param {string} value 
+     * @param {HTMLTextAreaElement} input
+     * @param {string} value
      */
     function setReactTextareaValue(input, value) {
         nativeTextareaValueSetter.call(input, value);
@@ -60,11 +50,20 @@
 
     /**
      * Returns the first element that is a descendant of node that matches selectors.
-     * @param {string} selectors 
-     * @param {ParentNode} node 
+     * @param {string} selectors
+     * @param {ParentNode} node
      */
     function qs(selectors, node = document) {
         return node.querySelector(selectors);
+    }
+
+    /**
+     * Returns all elements that are descendants of node that matches selectors.
+     * @param {string} selectors
+     * @param {ParentNode} node
+     */
+    function qsa(selectors, node = document) {
+        return node.querySelectorAll(selectors);
     }
 
     /**
@@ -251,7 +250,7 @@
     function parseWikipediaUrl(wikipediaUrl) {
         const match = wikipediaUrl.match(/^https?:\/\/([a-z]+)\.wikipedia\.org\/wiki\/(.+)$/i);
         if (!match) return null;
-        
+
         return {
             language: match[1],
             title: decodeURIComponent(match[2])
@@ -271,26 +270,26 @@
 
         // Call the Wikipedia API to get the Wikidata entity ID
         const apiUrl = `https://${wikipediaInfo.language}.wikipedia.org/w/api.php?action=query&prop=pageprops&titles=${encodeURIComponent(wikipediaInfo.title)}&format=json&origin=*`;
-        
+
         try {
             const response = await fetchURL(apiUrl);
             const data = JSON.parse(response.responseText);
-            
+
             // Extract the page ID (first key in pages object)
             const pages = data.query.pages;
             const pageId = Object.keys(pages)[0];
-            
+
             if (pageId === "-1") {
                 throw new Error("Wikipedia page not found");
             }
-            
+
             // Get the Wikidata entity ID
             const wikidataId = pages[pageId].pageprops?.wikibase_item;
-            
+
             if (!wikidataId) {
                 throw new Error("No Wikidata entity found for this Wikipedia article");
             }
-            
+
             return `https://www.wikidata.org/wiki/${wikidataId}`;
         } catch (error) {
             console.error("Error fetching Wikidata ID:", error);
@@ -340,7 +339,7 @@
     function addFixerUpperButton(currentSpan) {
         const tableRow = currentSpan.parentElement.parentElement;
         const linkElement = tableRow.querySelector("a.url");
-        if (!linkElement || isWikidataLink(linkElement.href) || !isWikipediaLink(linkElement.href) || 
+        if (!linkElement || isWikidataLink(linkElement.href) || !isWikipediaLink(linkElement.href) ||
             tableRow.querySelector('.wikidata-converter-button')) {
             return;
         }
@@ -378,7 +377,8 @@
                                 }
                             }
                             if (urlID) {
-                                linkButton.href = document.location.origin + "/url/" + urlID + "/edit";
+                                linkButton.href = document.location.origin + "/url/"
+                                    + urlID + "/edit";
                                 listItem.appendChild(linkButton);
                             }
                         })
@@ -407,7 +407,7 @@
                     if (mutation.removedNodes.length > 0
                         && mutation.removedNodes.item(0).classList
                         && mutation.removedNodes.item(0).classList.contains("url")) {
-                        if (mutation.target.nextElementSibling && 
+                        if (mutation.target.nextElementSibling &&
                             mutation.target.nextElementSibling.classList.contains("wikidata-converter-td")) {
                             mutation.target.nextElementSibling.remove();
                         }
@@ -422,29 +422,301 @@
         }
     }
 
-    function fixLinkURLEdit(row) {
-        const urlInput = row.querySelector("input#id-edit-url\\.url");
-        const button = row.querySelector("button.wikidata-converter-button");
-        urlInput.setAttribute("oldLink", urlInput.value);
-        button.disabled = true;
-        clearError(row);
-        getWikidataUrlFromWikipedia(urlInput.value)
-            .then((wikidataURL) => {
-                setReactInputValue(urlInput, wikidataURL);
-                addMessageToEditNote(urlInput.getAttribute("oldLink")
-                    + " → "
-                    + wikidataURL);
-            })
-            .catch((error) => {
-                console.warn(error);
-                displayError(row, error, ".wikidata-converter-button");
-            })
-            .finally(() => {
-                button.disabled = false;
+    /**
+     * Waits for an element to appear in the DOM.
+     * @param {string} selector CSS selector for the element to wait for.
+     * @param {ParentNode} parent The parent node to observe for changes. Defaults to document.body.
+     * @param {number} timeout Maximum time to wait in milliseconds.
+     * @returns {Promise<HTMLElement>} A Promise that resolves with the found element, or rejects on timeout.
+     */
+    function waitForElement(selector, parent = document.body, timeout = 5000) {
+        return new Promise((resolve, reject) => {
+            const observer = new MutationObserver((mutations, obs) => {
+                const element = qs(selector, parent);
+                if (element) {
+                    obs.disconnect();
+                    clearTimeout(timer);
+                    resolve(element);
+                }
             });
+
+            const timer = setTimeout(() => {
+                observer.disconnect();
+                reject(new Error(`Timed out waiting for element: ${selector}`));
+            }, timeout);
+
+            observer.observe(parent, { childList: true, subtree: true });
+
+            // Check immediately in case the element is already there
+            const element = qs(selector, parent);
+            if (element) {
+                observer.disconnect();
+                clearTimeout(timer);
+                resolve(element);
+            }
+        });
     }
 
-    function runOnURLEditPage() {
+    /**
+     * Waits for an element to be removed from the DOM.
+     * @param {string} selector CSS selector for the element to wait for its removal.
+     * @param {ParentNode} parent The parent node to observe for changes. Defaults to document.body.
+     * @param {number} timeout Maximum time to wait in milliseconds.
+     * @returns {Promise<void>} A Promise that resolves when the element is removed, or rejects on timeout.
+     */
+    function waitForElementRemoval(selector, parent = document.body, timeout = 5000) {
+        return new Promise((resolve, reject) => {
+            // Check immediately if element is already gone
+            if (!qs(selector, parent)) {
+                resolve();
+                return;
+            }
+
+            const observer = new MutationObserver((mutations, obs) => {
+                if (!qs(selector, parent)) {
+                    obs.disconnect();
+                    clearTimeout(timer);
+                    resolve();
+                }
+            });
+
+            const timer = setTimeout(() => {
+                observer.disconnect();
+                reject(new Error(`Timed out waiting for element removal: ${selector}`));
+            }, timeout);
+
+            observer.observe(parent, { childList: true, subtree: true });
+        });
+    }
+
+    /**
+     * Handles the relationship dialog, setting the type to "Wikidata / Wikidata page for".
+     * @param {HTMLElement} dialog The relationship dialog element.
+     */
+    async function handleRelationshipDialog(dialog) {
+        // Wait for the dialog to be fully interactive
+        await delay(100); // Optimized delay
+
+        // Attempt to click the type input to open the dropdown
+        const typeInput = await waitForElement("input[id^='relationship-type-']", dialog, 2000); // Optimized timeout
+        if (typeInput) {
+            typeInput.click();
+            await delay(50); // Optimized delay
+        } else {
+            console.warn("Type input not found in relationship dialog. Skipping type selection.");
+            return;
+        }
+
+        const wikidataOptionTexts = ["Wikidata / Wikidata page for", "Wikidata page for / Wikidata"];
+        let wikidataOption = null;
+
+        // First, try to find the option by text content among all list items
+        const optionsContainer = document.body; // Autocomplete options are often appended directly to body
+        const allOptions = qsa("li[role='option']", optionsContainer);
+        for (const option of allOptions) {
+            if (wikidataOptionTexts.includes(option.textContent.trim())) {
+                wikidataOption = option;
+                break;
+            }
+        }
+
+        if (wikidataOption) {
+            wikidataOption.click();
+            await delay(50); // Optimized delay
+        } else {
+            console.warn("Specific Wikidata option by text not found. Attempting to type and select.");
+            // Fallback: Type "Wikidata / Wikidata page for" into the search input and select the first result
+            const searchInput = await waitForElement(".ui-autocomplete-input", dialog, 2000); // Optimized timeout
+            if (searchInput) {
+                setReactInputValue(searchInput, "Wikidata / Wikidata page for");
+                await delay(300); // Optimized delay for autocomplete results to populate
+
+                // After typing, try to find the option again by text content in the new results
+                const updatedOptions = qsa("li[role='option']", optionsContainer);
+                for (const option of updatedOptions) {
+                    if (wikidataOptionTexts.includes(option.textContent.trim())) { // Check both variations again
+                        wikidataOption = option;
+                        break;
+                    }
+                }
+
+                if (wikidataOption) {
+                    wikidataOption.click();
+                    await delay(50); // Optimized delay
+                } else {
+                    console.warn("Could not find autocomplete results for Wikidata after typing. Manual intervention may be needed.");
+                }
+            } else {
+                console.warn("Autocomplete search input not found. Manual intervention may be needed.");
+            }
+        }
+
+        // Click the "Done" button
+        const doneButton = qs("div.buttons > div > button", dialog);
+        if (doneButton) {
+            doneButton.click();
+            await delay(100); // Optimized delay
+        } else {
+            console.warn("Done button not found in relationship dialog.");
+        }
+    }
+
+    async function fixLinkURLEdit(row) {
+        const urlInput = row.querySelector("input#id-edit-url\\.url");
+        const convertButton = row.querySelector("button.wikidata-converter-button");
+        urlInput.setAttribute("oldLink", urlInput.value);
+        convertButton.disabled = true;
+        clearError(row);
+
+        let conversionSuccessful = false;
+        let allRelationshipsHandled = false; // Flag to track if all relationships were either converted or removed
+
+        try {
+            const wikidataURL = await getWikidataUrlFromWikipedia(urlInput.value);
+            setReactInputValue(urlInput, wikidataURL);
+            addMessageToEditNote(urlInput.getAttribute("oldLink") + " → " + wikidataURL);
+            conversionSuccessful = true; // Mark conversion as successful
+
+            const relationshipEditor = qs("#relationship-editor");
+            if (relationshipEditor) {
+                const wikipediaRelationshipRows = Array.from(relationshipEditor.querySelectorAll("tr.wikipedia-page-for"));
+                let relationshipsProcessedCount = 0;
+                let totalRelationshipsToProcess = 0;
+
+                for (const tr of wikipediaRelationshipRows) {
+                    const relationshipItems = Array.from(tr.querySelectorAll(".relationship-item"));
+                    totalRelationshipsToProcess += relationshipItems.length;
+
+                    for (const item of relationshipItems) {
+                        const editButton = item.querySelector(".edit-item");
+                        if (editButton) {
+                            editButton.click();
+
+                            try {
+                                const dialog = await waitForElement("#edit-relationship-dialog", document.body, 5000);
+                                await handleRelationshipDialog(dialog);
+                                await waitForElementRemoval("#edit-relationship-dialog", document.body, 5000);
+                                await delay(300);
+                                relationshipsProcessedCount++;
+                            } catch (dialogError) {
+                                console.error(`Failed to fully process relationship dialog for item: ${dialogError.message}. Attempting recovery.`);
+                                const currentDialog = qs("#edit-relationship-dialog");
+                                if (currentDialog) {
+                                    console.warn("Dialog still present after error. Attempting to force close.");
+                                     const doneButton = qs("div.buttons > div > button", currentDialog);
+                                     if (doneButton) {
+                                         doneButton.click();
+                                         await delay(200);
+                                         try {
+                                             await waitForElementRemoval("#edit-relationship-dialog", document.body, 2000);
+                                             console.log("Dialog successfully force-closed and removed.");
+                                         } catch (forceCloseError) {
+                                             console.error(`Failed to force-close dialog: ${forceCloseError.message}. This might cause issues with subsequent operations.`);
+                                         }
+                                     } else {
+                                         console.warn("Done button not found in current dialog during error recovery. Cannot force close.");
+                                     }
+                                } else {
+                                    console.log("Dialog not found after error, likely already closed or never opened fully.");
+                                }
+                                await delay(1000);
+                                relationshipsProcessedCount++;
+                            }
+                        } else {
+                            relationshipsProcessedCount++;
+                        }
+                    }
+                }
+                if (relationshipsProcessedCount === totalRelationshipsToProcess) {
+                    allRelationshipsHandled = true;
+                }
+            } else {
+                allRelationshipsHandled = true;
+            }
+        } catch (error) {
+            console.warn(error);
+            displayError(row, error, ".wikidata-converter-button");
+            conversionSuccessful = false;
+        } finally {
+            convertButton.disabled = false;
+
+            // Find the "Make all edits votable" checkbox
+            const makeVotableCheckbox = qs('#id-edit-url\\.make_votable');
+
+            if (conversionSuccessful) {
+                if (allRelationshipsHandled) {
+                    // addMessageToEditNote("Automatically submitting edit after successful Wikidata conversion and all relationships handled."); // Removed this line
+                    if (makeVotableCheckbox) {
+                        makeVotableCheckbox.checked = true;
+                        makeVotableCheckbox.dispatchEvent(new Event('change', { bubbles: true })); // Dispatch change event
+                        console.log("DEBUG: 'Make edit votable' checkbox checked.");
+                    }
+                    const submitButton = qs("button.submit.positive");
+                    if (submitButton) {
+                        console.log("DEBUG: Auto-submission WOULD HAVE OCCURRED (successful conversion scenario).");
+                        await delay(500); // Keep delay for realistic timing
+                        submitButton.click();
+                        console.log("Automatically submitted the edit.");
+                    } else {
+                        console.warn("DEBUG: Submit button not found. Manual submission required.");
+                    }
+                } else {
+                    console.warn("DEBUG: Not submitting automatically: Wikidata conversion successful, but not all relationships were handled.");
+                }
+            } else {
+                // addMessageToEditNote("Automatically attempting to remove Wikipedia relationships due to failed Wikidata conversion."); // Removed this line
+                let relationshipsSuccessfullyRemoved = true;
+
+                const relationshipEditor = qs("#relationship-editor");
+                if (relationshipEditor) {
+                    const wikipediaRelationshipRows = Array.from(relationshipEditor.querySelectorAll("tr.wikipedia-page-for"));
+                    for (const tr of wikipediaRelationshipRows) {
+                        const relationshipItems = Array.from(tr.querySelectorAll(".relationship-item"));
+                        for (const item of relationshipItems) {
+                            const removeButton = item.querySelector(".remove-item");
+                            if (removeButton) {
+                                console.log("Attempting to remove relationship item due to failed conversion:", item);
+                                try {
+                                    removeButton.click();
+                                    await delay(300);
+                                } catch (removeError) {
+                                    console.error(`Error clicking remove button for item: ${removeError.message}`);
+                                    relationshipsSuccessfullyRemoved = false;
+                                }
+                            } else {
+                                console.warn("Relationship item found without a remove button:", item);
+                                relationshipsSuccessfullyRemoved = false;
+                            }
+                        }
+                    }
+                } else {
+                    console.log("No relationship editor found, assuming no relationships to remove.");
+                }
+                console.log("Finished attempting to remove Wikipedia relationships. All relationships successfully marked for removal:", relationshipsSuccessfullyRemoved);
+
+                if (relationshipsSuccessfullyRemoved) {
+                    if (makeVotableCheckbox) {
+                        makeVotableCheckbox.checked = true;
+                        makeVotableCheckbox.dispatchEvent(new Event('change', { bubbles: true })); // Dispatch change event
+                        console.log("DEBUG: 'Make edit votable' checkbox checked.");
+                    }
+                    const submitButton = qs("button.submit.positive");
+                    if (submitButton) {
+                        console.log("DEBUG: Auto-submission WOULD HAVE OCCURRED (failed conversion, successful removal scenario).");
+                        await delay(500); // Keep delay for realistic timing
+                        submitButton.click();
+                        console.log("Automatically submitted the edit after removal.");
+                    } else {
+                        console.warn("DEBUG: Submit button not found. Manual submission required after removal.");
+                    }
+                } else {
+                    console.warn("DEBUG: Not submitting automatically: Wikidata conversion failed and not all Wikipedia relationships could be marked for removal.");
+                }
+            }
+        }
+    }
+
+    async function runOnURLEditPage() {
         const urlInput = document.querySelector("input#id-edit-url\\.url");
         if (!urlInput) {
             return;
@@ -452,12 +724,41 @@
         if (!isWikipediaLink(urlInput.value) || isWikidataLink(urlInput.value)) {
             return;
         }
+
+        // Check for pending edits using the 'mp' class in the urlheader
+        let hasPendingEdits = false;
+        try {
+            // Wait for the urlheader to be present, then check for the 'mp' class
+            const urlHeaderSpanMp = await waitForElement("div.urlheader h1 span.mp", document.body, 1000); // Shorter timeout for this specific element
+            if (urlHeaderSpanMp) {
+                hasPendingEdits = true;
+                console.log("DEBUG: Pending edits detected: TRUE (via 'mp' class in urlheader).");
+            } else {
+                console.log("DEBUG: Pending edits detected: FALSE (no 'mp' class in urlheader).");
+            }
+        } catch (e) {
+            console.log("DEBUG: Could not find 'mp' class in urlheader (likely no pending edits or element not yet present):", e.message);
+            // If waitForElement times out, it means the element wasn't found, which implies no pending edits via this indicator.
+            hasPendingEdits = false;
+        }
+
+
+        if (hasPendingEdits) {
+            displayError(urlInput.parentElement, new Error("Pending edits detected for this URL. Automatic conversion/removal aborted. Please resolve pending edits manually."));
+            console.warn("DEBUG: Automatic conversion/removal aborted due to pending edits.");
+            return; // Stop execution
+        }
+
         const button = document.createElement("button");
         button.type = "button";
         button.textContent = "Convert to Wikidata";
         button.className = "styled-button wikidata-converter-button";
         button.addEventListener("click", function () { fixLinkURLEdit(urlInput.parentElement); });
         urlInput.insertAdjacentElement("afterend", button);
+
+        // Automatically click the convert button after it's added
+        console.log("DEBUG: Automatically clicking 'Convert to Wikidata' button.");
+        button.click();
     }
 
     const location = document.location.href;
