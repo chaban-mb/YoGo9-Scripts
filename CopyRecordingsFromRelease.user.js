@@ -63,8 +63,6 @@
                 font-size: 13px;
                 border: 1px solid var(--border, #aaa);
                 border-radius: 3px;
-                background: var(--background-dimmed, #fff);
-                color: var(--text, inherit);
             }
             #cfr-btn {
                 padding: 4px 10px;
@@ -74,10 +72,6 @@
                 border: 1px solid var(--border, #888);
                 background: var(--background-emphasis, #e8eaf0);
                 color: var(--text, inherit);
-                filter: none;
-            }
-            #cfr-btn:hover {
-                filter: brightness(0.95);
             }
             #cfr-target-chooser {
                 display: none;
@@ -95,10 +89,6 @@
                 border-radius: 3px;
                 background: var(--background, #fff);
                 color: var(--text, inherit);
-                filter: none;
-            }
-            .cfr-btn-item:hover {
-                background: var(--background-emphasis, #f4f6fa);
             }
             .cfr-meta {
                 color: var(--text-dimmed, #666);
@@ -111,13 +101,10 @@
                 color: var(--text-dimmed, #555);
             }
             #cfr-status.cfr-status-error {
-                color: var(--negative-emphasis, var(--error, #a00));
+                color: #a00;
             }
             #cfr-status.cfr-status-success {
-                color: var(--positive-emphasis, var(--positive, #080));
-            }
-            #cfr-status.cfr-status-warning {
-                color: var(--attention, #b50);
+                color: #007700;
             }
         `;
         document.head.appendChild(style);
@@ -327,21 +314,9 @@
         var el = document.getElementById('cfr-status');
         if (!el) return;
         el.textContent = msg;
-        el.className = '';
-        if (color === '#a00') {
-            el.className = 'cfr-status-error';
-            el.style.color = '';
-        } else if (color === '#080' || color === '#007700') {
-            el.className = 'cfr-status-success';
-            el.style.color = '';
-        } else if (color === '#b50') {
-            el.className = 'cfr-status-warning';
-            el.style.color = '';
-        } else if (color && color !== '#555') {
-            el.style.color = color;
-        } else {
-            el.style.color = '';
-        }
+        el.className = color === '#a00' ? 'cfr-status-error'
+                     : color === '#007700' ? 'cfr-status-success'
+                     : '';
     }
 
     function clearTargetChooser() {
@@ -545,4 +520,4 @@
     injectUI();
 
 })();
-                
+

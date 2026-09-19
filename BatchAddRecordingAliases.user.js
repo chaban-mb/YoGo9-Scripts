@@ -120,47 +120,22 @@ if (!/^\/release\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
       #yomo-box .yomo-title {
         font-weight: 600;
       }
+      #yomo-src {
+        width: 520px;
+        max-width: 100%;
+      }
       #yomo-box .yomo-control {
         display: flex;
         gap: 6px;
         align-items: center;
       }
-      #yomo-src {
-        width: 520px;
-        max-width: 100%;
-      }
       #yomo-locale {
         width: 70px;
-      }
-      #yomo-box input[type="text"],
-      #yomo-box input:not([type]) {
-        background: var(--background-dimmed, #fff);
-        color: var(--text, inherit);
-        border: 1px solid var(--border, #aaa);
-        border-radius: 3px;
-        padding: 4px 6px;
-      }
-      #yomo-box button {
-        padding: 4px 10px;
-        font-size: 13px;
-        cursor: pointer;
-        border-radius: 3px;
-        border: 1px solid var(--border, #888);
-        background: var(--background-emphasis, #e8eaf0);
-        color: var(--text, inherit);
-        filter: none;
-      }
-      #yomo-box button:disabled {
-        opacity: 0.6;
-        cursor: not-allowed;
-      }
-      #yomo-box button:not(:disabled):hover {
-        filter: brightness(0.95);
       }
       #yomo-status {
         margin-top: 8px;
         white-space: pre-wrap;
-        color: var(--text-dimmed, #555);
+        color: var(--text-dimmed, inherit);
       }
       #yomo-table {
         margin-top: 8px;
