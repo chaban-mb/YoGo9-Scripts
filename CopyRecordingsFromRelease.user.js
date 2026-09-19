@@ -72,6 +72,7 @@
                 border: 1px solid var(--border, #888);
                 background: var(--background-emphasis, #e8eaf0);
                 color: var(--text, inherit);
+                filter: none;
             }
             #cfr-target-chooser {
                 display: none;
@@ -89,6 +90,7 @@
                 border-radius: 3px;
                 background: var(--background, #fff);
                 color: var(--text, inherit);
+                filter: none;
             }
             .cfr-meta {
                 color: var(--text-dimmed, #666);
